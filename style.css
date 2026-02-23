@@ -598,6 +598,39 @@ h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px
   }
 }
 
+@media (pointer:coarse) and (orientation:portrait){
+  #runScreen {
+    display: flex !important;
+    flex-direction: column;
+    grid-template-columns: unset !important;
+    height: auto;
+    overflow: visible;
+  }
+
+  #leftCol,
+  #rightCol {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #rightCol {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .controls-area {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .controls-area .dir-buttons,
+  .controls-area .stop-wrap {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 @media (max-width:900px) and (orientation:landscape){
   #main {
     min-height: 0;

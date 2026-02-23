@@ -23,6 +23,8 @@
   /* Cached elements */
   const runTab = $id('runTab');
   const runScreen = $id('runScreen');
+  const leftCol = $id('leftCol');
+  const rightCol = $id('rightCol');
 
   const throttle = $id('throttle');
   const throttleVal = $id('throttleVal');
@@ -45,11 +47,56 @@
   const locoNameEl = $id('locoName');
 
   /* UI: tabs */
+  function useSingleColumnRunLayout() {
+    try {
+      const narrow = window.matchMedia('(max-width: 900px)').matches;
+      const coarsePortrait = window.matchMedia('(pointer: coarse) and (orientation: portrait)').matches;
+      return narrow || coarsePortrait;
+    } catch (e) {
+      return (window.innerWidth || 1200) <= 900;
+    }
+  }
+
+  function applyRunLayout() {
+    if (!runScreen) return;
+    const single = useSingleColumnRunLayout();
+
+    if (single) {
+      runScreen.style.display = 'flex';
+      runScreen.style.flexDirection = 'column';
+      runScreen.style.gridTemplateColumns = 'unset';
+      runScreen.style.height = 'auto';
+
+      if (leftCol) leftCol.style.order = '1';
+      if (rightCol) {
+        rightCol.style.order = '2';
+        rightCol.style.maxHeight = 'none';
+        rightCol.style.overflow = 'visible';
+      }
+      return;
+    }
+
+    runScreen.style.display = 'grid';
+    runScreen.style.flexDirection = '';
+    runScreen.style.gridTemplateColumns = '70fr 30fr';
+    runScreen.style.height = '';
+
+    if (leftCol) leftCol.style.order = '';
+    if (rightCol) {
+      rightCol.style.order = '';
+      rightCol.style.maxHeight = '';
+      rightCol.style.overflow = '';
+    }
+  }
+
   function showRun() {
-    if (runScreen) runScreen.style.display = 'grid';
+    applyRunLayout();
     if (runTab) runTab.classList.add('active');
   }
   if (runTab) runTab.addEventListener('click', showRun);
+
+  window.addEventListener('resize', applyRunLayout);
+  window.addEventListener('orientationchange', applyRunLayout);
 
   /* Connection UI */
   function updateConnectionUI(connected) {
@@ -503,6 +550,7 @@
       locoNameEl.textContent = `Loco: ${initialName}`;
     }
     showRun();
+    applyRunLayout();
     if ($id('a1Btn') && !$id('a1Btn').classList.contains('on')) $id('a1Btn').classList.add('off');
     if ($id('a2Btn') && !$id('a2Btn').classList.contains('on')) $id('a2Btn').classList.add('off');
     updateConnectionUI(false);
