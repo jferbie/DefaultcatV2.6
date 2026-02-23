@@ -1,0 +1,698 @@
+/* style.css — DefaultCab v2.2 dark theme (updated) */
+
+:root{
+  --bg:#0b0f14;
+  --bg-accent:#071021;
+  --panel:#0b0d10;
+  --muted:#9aa4b2;
+  --accent:#4aa3ff;
+  --accent-strong:#2b8cff;
+  --text:#e6eef8;
+  --danger:#ff6b6b;
+  --card-shadow: rgba(0,0,0,0.6);
+  --radius:6px;
+  --gap:12px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+*{box-sizing:border-box}
+html,body{
+  width: 100%;
+  height:100%;
+  margin:0;
+  padding:0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  background:
+    radial-gradient(1200px 600px at 10% 10%, rgba(74,163,255,0.03), transparent 8%),
+    radial-gradient(900px 400px at 90% 80%, rgba(255,255,255,0.02), transparent 12%),
+    linear-gradient(180deg, var(--bg-accent), var(--bg));
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+/* Top bar */
+#topbar{
+  display:flex;
+  align-items:center;
+  gap:15px;
+  padding:10px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.06));
+  color:var(--text);
+  box-shadow: 0 2px 8px var(--card-shadow);
+}
+#topbar button{
+  padding:6px 12px;
+  border-radius:4px;
+  border:1px solid rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.02);
+  color:var(--text);
+  cursor:pointer;
+}
+
+/* Tabs */
+#tabs{display:flex;gap:8px}
+#tabs button{
+  background:transparent;
+  color:var(--muted);
+  border:none;
+  padding:8px 16px;
+  cursor:pointer;
+  border-radius:4px;
+}
+#tabs button.active{background:var(--accent); color:#fff}
+
+/* Main area */
+#main {
+  padding: 20px;
+  width: 100%;
+  height: calc(100vh - 40px);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Layout: left 70% / right 30% grid */
+#runScreen {
+  display: grid;
+  grid-template-columns: 70fr 30fr;
+  gap: 24px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+#leftCol {
+  box-sizing: border-box;
+  min-width: 0;
+  flex-shrink: 0;
+}
+#rightCol { 
+  box-sizing: border-box;
+  min-width: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.03);
+  display: flex !important;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto;
+  min-height: auto;
+}
+
+/* Existing throttle-row rules left in place for fallback */
+.throttle-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+/* Throttle column (slider + label) fallback */
+.throttle-col {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  padding: 12px 6px;
+  justify-content:flex-start;
+}
+
+/* Thumb and track styling (desktop + touch friendly) */
+#throttle::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 56px;
+  height: 28px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #e8e8e8 0%, #a8a8a8 50%, #c0c0c0 100%);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.4), 0 4px 12px rgba(0,0,0,0.6);
+  border: 1px solid rgba(100,100,100,0.3);
+}
+#throttle::-webkit-slider-runnable-track {
+  height: 10px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+}
+
+/* Firefox */
+#throttle::-moz-range-thumb {
+  width: 56px;
+  height: 28px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #e8e8e8 0%, #a8a8a8 50%, #c0c0c0 100%);
+  border: 1px solid rgba(100,100,100,0.3);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.4);
+}
+#throttle::-moz-range-track {
+  height: 10px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+}
+
+/* Throttle textual label under slider */
+.throttle-text { margin-top: 6px; color:var(--muted); font-size:14px; }
+
+/* Throttle info (dial + speed) */
+.throttle-info { display:flex; flex-direction:column; gap:12px; align-items:stretch; }
+
+/* Dial container */
+.dial-wrap {
+  width: 260px;
+  max-width: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(200,200,200,0.12);
+  border-radius: 10px;
+  padding: 12px;
+}
+#throttleDial { width: 100%; height: auto; display: block; touch-action: none; user-select: none; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.6)); }
+.dial-labels { display:flex; justify-content:space-between; align-items:center; width:100%; margin-top:6px; font-size:14px; color:var(--muted); }
+.dial-labels #throttlePercent { text-align:center; flex:1; font-weight:bold; color:var(--text); }
+
+/* Speed block */
+.speed-block { display:flex; flex-direction:column; gap:6px; align-items:flex-start; background: rgba(255,255,255,0.04); border: 1px solid rgba(200,200,200,0.12); border-radius: 10px; padding: 10px; }
+.speed-label { font-size:12px; color:var(--muted); letter-spacing:1px; }
+.speed-value { font-size:20px; font-weight:700; color:var(--text); background: rgba(255,255,255,0.02); padding:6px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.03); }
+.throttle-output { font-size:12px; color:var(--muted); margin-top:4px; }
+
+/* Rocker switch (buttons under throttle row) */
+.rocker { margin-top: 14px; display:flex; justify-content:flex-start; }
+.dir-buttons { display:flex; gap:10px; align-items:center; justify-content:center; }
+
+/* Direction buttons */
+.dir-btn { width:120px; height:44px; font-size:16px; border-radius:6px; border:1px solid rgba(255,255,255,0.03); background: rgba(255,255,255,0.02); color:var(--text); cursor:pointer; }
+.dir-btn.forward { background: linear-gradient(180deg, rgba(74,163,255,0.12), rgba(43,140,255,0.08)); color:#eaf6ff; border:1px solid rgba(74,163,255,0.12); }
+.dir-btn.reverse { background: linear-gradient(180deg, rgba(255,165,90,0.06), rgba(255,140,40,0.04)); color:var(--text); border:1px solid rgba(255,165,90,0.06); }
+
+/* STOP button */
+#stopBtn{
+  background:var(--danger);
+  color:#111;
+  font-weight:bold;
+  width:120px;
+  height:44px;
+  border-radius:6px;
+  border:none;
+  cursor:pointer;
+}
+
+/* Accessories */
+.accBtn{
+  width:100px;
+  height:50px;
+  font-size:18px;
+  margin-bottom:10px;
+  border-radius:6px;
+  border:none;
+  cursor:pointer;
+  color:#fff;
+  background:#7a2f2f;
+  border:1px solid rgba(255,255,255,0.03);
+}
+.accBtn.on{background:#0fbf7a; color:#021}
+
+/* Accessories layout in right column (restored) */
+#rightCol .accessory-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+/* Ensure accessory buttons sit cleanly under the heading inside card frame */
+.card-frame .accessory-row {
+  margin-top: 8px;
+  gap: 12px;
+  display: flex;
+  flex-wrap: wrap; /* Changed to wrap to allow better layout */
+  align-items: center;
+}
+
+/* Make accessory buttons responsive so they don't overflow the card */
+.card-frame .accBtn {
+  width: calc(50% - 6px);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Safety: prevent accessory buttons from escaping the card */
+.card-frame, .card-frame * { position: relative; }
+.card-frame .accessory-row { left: 0 !important; top: 0 !important; }
+.card-frame .accBtn { right: 0 !important; }
+
+/* Framed square container for round buttons */
+.btn-frame {
+  background: rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 68px;
+  min-height: 68px;
+  box-sizing: border-box;
+  border: 1px solid rgba(200,200,200,0.12);
+}
+.btn-frame.stop-frame { background: rgba(255,255,255,0.04); }
+
+/* Make inner buttons round and centered inside the frame */
+.btn-frame .accBtn,
+.btn-frame .stop-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+/* Tweak colors for contrast on dark background for accessory frames */
+.btn-frame .accBtn { background: #7a2f2f; color: #fff; border: 1px solid rgba(255,255,255,0.04); }
+.btn-frame .accBtn.on { background: #0fbf7a; color: #021; }
+.btn-frame .stop-btn { background: var(--danger); color: #111; border: none; }
+
+/* Responsive: smaller frames on tight widths */
+@media (max-width:480px){
+  .btn-frame { min-width:56px; min-height:56px; padding:6px; }
+  .btn-frame .accBtn, .btn-frame .stop-btn { width:40px; height:40px; }
+}
+
+/* Segmented toggle (forward / reverse) inside a btn-frame */
+.btn-frame.seg-frame {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 4px;
+  gap: 0;
+  display: flex;
+  min-width: 180px;
+  align-items: center;
+  justify-content: center;
+}
+.seg-frame .seg-btn {
+  width: 84px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  margin: 0;
+  border-radius: 6px;
+  flex: 1;
+  transition: all 0.2s ease;
+}
+
+.seg-frame .seg-btn:first-child { border-radius: 6px 0 0 6px; }
+.seg-frame .seg-btn:last-child { border-radius: 0 6px 6px 0; }
+
+/* Active states: green for FOR, amber for REV */
+.seg-frame .seg-btn.active#forwardBtn { background: #0fbf7a; color: #042; }
+.seg-frame .seg-btn.active#reverseBtn { background: #ffb84d; color: #3a2600; }
+
+@media (max-width:480px){
+  .seg-frame { min-width: 140px; }
+  .seg-frame .seg-btn { width:72px; height:40px; }
+}
+
+/* Make STOP button larger and perfectly round (higher specificity than #stopBtn) */
+.btn-frame.stop-frame { padding: 14px; min-width: 88px; min-height: 88px; }
+.btn-frame .stop-btn#stopBtn { width: 64px; height: 64px; border-radius: 50%; font-size: 15px; }
+
+/* Simple indicators */
+#analog{
+  margin-top:12px;
+  padding:10px;
+  background:rgba(255,255,255,0.04);
+  border-radius:10px;
+  width:auto;
+  text-align:center;
+  color:var(--text);
+  border: 1px solid rgba(200,200,200,0.12);
+}
+
+/* Analog wrap container with frame styling */
+.analog-wrap-inline { background: rgba(255,255,255,0.04); border: 1px solid rgba(200,200,200,0.12); border-radius: 10px; padding: 10px; }
+
+/* Settings screen */
+/* Settings removed - now part of right column */
+.settingRow { margin-bottom: 16px; }
+.settingRow label { color: var(--text); display: block; margin-bottom: 8px; font-weight: 500; }
+.settingRow input[type="range"] { width: 100%; height: 8px; cursor: pointer; }
+.settingRow input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  outline: none;
+}
+.settingRow input[type="text"]:focus {
+  border-color: var(--accent);
+}
+
+/* Settings range input styling */
+.settingRow input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  border: 2px solid rgba(255,255,255,0.06);
+  cursor: pointer;
+}
+.settingRow input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+}
+
+.settingRow input[type="range"]::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid rgba(255,255,255,0.06);
+  cursor: pointer;
+}
+.settingRow input[type="range"]::-moz-range-track {
+  height: 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  border: none;
+}
+
+#saveSettings { padding: 10px 20px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; margin-top: 20px; }
+
+/* Headings styling */
+h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+/* ---------------------------
+   New layout: left panel fills 70% column
+   Throttle area 80% of panel height
+   --------------------------- */
+
+/* Left panel container that fills the left grid column */
+.panel-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 8px;
+  overflow: hidden;
+}
+
+/* Card-like frames used for throttle, accessories, sound, settings */
+.card-frame {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+}
+.card-frame h3 { margin-top: 0; color: var(--accent); }
+.card-frame.small { padding: 8px; border-radius: 8px; }
+
+/* When throttle is inside a card, remove duplicate inner background */
+.throttle-frame .throttle-area {
+  background: transparent;
+  border: none;
+  padding: 6px 0 0 0;
+}
+
+/* spacing between stacked frames in right column */
+#rightCol > .card-frame { margin-bottom: 12px; }
+
+/* Main split: throttle area (80%) above, controls area (20%) below */
+.throttle-panel-main {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* Throttle area takes 80% of the panel height */
+.throttle-area {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  flex: 0 0 80%;
+  padding: 8px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02));
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.02);
+  overflow: visible;
+}
+
+/* Controls area below takes remaining 20% */
+.controls-area {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 6px;
+  flex: 1 1 20%;
+  box-sizing: border-box;
+.card-frame { display: flex; flex-direction: column; align-items: stretch; overflow: hidden; }
+}
+
+/* Throttle slider column (vertical, tall) */
+.throttle-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: auto;
+  height: 100%;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(200,200,200,0.12);
+  border-radius: 10px;
+  flex: 0 0 33.33%;
+  min-width: 0;
+}
+
+/* Default slider sizing; JS will override width to match wrap height */
+#throttle {
+  -webkit-appearance: none;
+  appearance: none;
+  width: calc(100% - 20px);
+  height: 18px;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  background: transparent;
+  margin: 0;
+  touch-action: none;
+  display: block;
+  overflow: visible;
+  max-width: 1000px;
+}
+
+/* Keep the dial/info to the right and vertically centered */
+.throttle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: center;
+  flex: 1;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* Analog inline styling */
+.analog-wrap-inline { margin-top: 6px; }
+
+/* Stop button centered in its area */
+.stop-wrap { display:flex; align-items:center; justify-content:center; }
+
+/* Small responsive - maintain 70/30 split on all screen sizes */
+@media (max-width:1200px){
+  #runScreen {
+    grid-template-columns: 70fr 30fr;
+    gap: 12px;
+  }
+  #main {
+    padding: 12px;
+  }
+}
+
+@media (max-width:768px){
+  #runScreen {
+    grid-template-columns: 70fr 30fr;
+    gap: 8px;
+  }
+  #main {
+    padding: 8px;
+  }
+  .panel-wrap {
+    padding: 4px;
+  }
+  .throttle-area {
+    gap: 8px;
+    padding: 4px;
+  }
+  .dir-buttons {
+    gap: 6px;
+  }
+  #rightCol {
+    padding: 8px;
+  }
+}
+
+/* Modal Styles */
+.modal {
+  display: none !important;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  animation: fadeIn 0.2s ease-in;
+}
+
+.modal.show {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px var(--card-shadow);
+  width: 90%;
+  max-width: 500px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.5em;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 28px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.close-btn:hover {
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  justify-content: flex-end;
+}
+
+.save-btn, .cancel-btn {
+  padding: 10px 20px;
+  border-radius: 4px;
+  border: none;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.save-btn {
+  background: var(--accent);
+  color: #fff;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.settings-btn {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: rgba(74, 163, 255, 0.1);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.settings-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
