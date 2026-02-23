@@ -167,8 +167,8 @@
     const DPR = window.devicePixelRatio || 1;
     const W = canvas.width;   // 260
     const H = canvas.height;  // 130
-    canvas.style.width = (W / DPR) + 'px';
-    canvas.style.height = (H / DPR) + 'px';
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
     canvas.width = W * DPR;
     canvas.height = H * DPR;
     ctx.scale(DPR, DPR);
