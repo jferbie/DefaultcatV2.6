@@ -67,9 +67,10 @@ html,body{
 #main {
   padding: 20px;
   width: 100%;
-  height: calc(100vh - 40px);
+  min-height: calc(100dvh - 40px);
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Layout: left 70% / right 30% grid */
@@ -414,7 +415,7 @@ h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px
   gap: 12px;
   box-sizing: border-box;
   padding: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Card-like frames used for throttle, accessories, sound, settings */
@@ -464,12 +465,22 @@ h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px
 .controls-area {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
+  flex-wrap: wrap;
   padding: 10px 6px;
   flex: 1 1 20%;
   box-sizing: border-box;
-.card-frame { display: flex; flex-direction: column; align-items: stretch; overflow: hidden; }
+}
+
+.controls-area .dir-buttons {
+  flex: 1 1 320px;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.controls-area .stop-wrap {
+  flex: 0 0 auto;
 }
 
 /* Throttle slider column (vertical, tall) */
@@ -555,6 +566,48 @@ h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px
   #rightCol {
     padding: 8px;
   }
+
+  .controls-area {
+    align-items: stretch;
+  }
+
+  .controls-area .dir-buttons,
+  .controls-area .stop-wrap {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width:900px) and (orientation:portrait){
+  .controls-area {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .controls-area .dir-buttons,
+  .controls-area .stop-wrap {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .btn-frame.seg-frame {
+    min-width: 0;
+    width: min(100%, 320px);
+  }
+}
+
+@media (max-width:900px) and (orientation:landscape){
+  #main {
+    min-height: calc(100dvh - 90px);
+    overflow-y: auto;
+  }
+
+  #runScreen {
+    height: auto;
+    min-height: 100%;
+  }
 }
 
 /* Mobile phones (under 600px) */
@@ -562,7 +615,8 @@ h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px
   html, body {
     width: 100%;
     height: 100%;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   #topbar {
@@ -593,21 +647,24 @@ h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px
   
   #main {
     padding: 4px;
-    height: calc(100vh - 120px);
+    min-height: calc(100dvh - 120px);
+    height: auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   #runScreen {
     display: flex !important;
     flex-direction: column;
     grid-template-columns: unset;
-    gap: 4px;
+    gap: 8px;
     height: auto;
     overflow-y: auto;
   }
 
   #leftCol {
     order: 1;
-    min-height: 300px;
+    min-height: auto;
   }
   
   #rightCol {
@@ -618,7 +675,7 @@ h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px
   }
 
   .card-frame {
-    padding: 6px;
+    padding: 8px;
   }
 
   .throttle-panel-main {
@@ -627,34 +684,36 @@ h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px
 
   .throttle-area {
     flex-direction: row;
-    gap: 4px;
-    padding: 4px;
-    min-height: 200px;
+    gap: 8px;
+    padding: 8px;
+    min-height: 250px;
   }
 
   .throttle-slider-wrap {
-    flex: 0 0 40px;
+    flex: 0 0 56px;
     min-width: 0;
   }
 
   .throttle-info {
     flex: 1;
     min-width: 0;
+    gap: 10px;
   }
 
   .dial-wrap {
     width: 100%;
+    padding: 10px;
   }
 
   #throttleDial {
     width: 100% !important;
     height: auto !important;
-    max-height: 80px;
+    max-height: 180px;
   }
 
   .dial-labels {
-    font-size: 0.75em;
-    gap: 2px;
+    font-size: 0.9em;
+    gap: 6px;
   }
 
   .speed-block {
@@ -666,42 +725,50 @@ h3 { color: var(--accent); font-size: 14px; margin-top: 16px; margin-bottom: 8px
   }
 
   .speed-value {
-    font-size: 1.2em;
+    font-size: 1.45em;
   }
 
   .controls-area {
-    flex-direction: row;
-    gap: 4px;
-    padding: 4px;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 6px;
+    justify-content: flex-start;
   }
 
   .dir-buttons {
-    flex: 1;
-    gap: 2px;
+    width: 100%;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .stop-wrap {
+    width: 100%;
+    justify-content: center;
   }
 
   .btn-frame.seg-frame {
-    min-width: 80px;
-    padding: 4px;
+    min-width: 0;
+    width: min(100%, 340px);
+    padding: 6px;
   }
 
   .seg-btn {
-    width: calc(50% - 2px) !important;
-    height: 32px !important;
-    font-size: 0.85em !important;
+    width: calc(50% - 3px) !important;
+    height: 44px !important;
+    font-size: 1em !important;
   }
 
   .btn-frame.stop-frame {
-    padding: 8px;
-    min-width: 50px;
-    min-height: 50px;
+    padding: 10px;
+    min-width: 78px;
+    min-height: 78px;
   }
 
   .stop-btn {
-    width: 40px !important;
-    height: 40px !important;
-    font-size: 0.9em !important;
+    width: 56px !important;
+    height: 56px !important;
+    font-size: 1em !important;
   }
 
   .card-frame h3 {
