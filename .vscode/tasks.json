@@ -1,0 +1,46 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Flash fcon1.1",
+			"type": "shell",
+			"command": "\"C:\\Program Files\\Arduino CLI\\arduino-cli.exe\"",
+			"args": [
+				"compile",
+				"--fqbn",
+				"esp32:esp32:XIAO_ESP32C3",
+				"-u",
+				"-p",
+				"COM6",
+				"\"C:\\Temp\\fcon1.1\""
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Flash fcon1.1",
+			"type": "shell",
+			"command": "& \"C:\\Program Files\\Arduino CLI\\arduino-cli.exe\"",
+			"args": [
+				"compile",
+				"--fqbn",
+				"esp32:esp32:XIAO_ESP32C3",
+				"-u",
+				"-p",
+				"COM6",
+				"C:\\Temp\\fcon1.1"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Flash fcon1.1 via pwsh",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"& 'C:\\Program Files\\Arduino CLI\\arduino-cli.exe' compile --fqbn esp32:esp32:XIAO_ESP32C3 -u -p COM6 'C:\\Temp\\fcon1.1'"
+			],
+			"isBackground": false
+		}
+	]
+}

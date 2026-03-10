@@ -3,94 +3,177 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-#include <Preferences.h>   // NVS for loco name
-#include <driver/i2s.h>    // I2S audio
+#include <Preferences.h>
 
-// -----------------------------
-// Pin map (XIAO ESP32-C3)
-// -----------------------------
-const int PIN_MOTOR_A   = D7;  // PWM forward
-const int PIN_MOTOR_B   = D8;  // PWM reverse
-const int PIN_MOTOR_DIR = D9;  // reserved for future 3-wire mode
+// --------------------------------------------------
+// Firmware: fcon1.1
+// Board: Seeed Studio XIAO ESP32-C3
+// --------------------------------------------------
 
-const int PIN_ACC1      = D1;
-const int PIN_ACC2      = D2;
+static const char* FW_NAME = "fcon1.1";
 
-const int PIN_SPEED     = D0;  // speed sensor (interrupt / analog)
+// --------------------------------------------------
+// Pin map (requested)
+// D0  = speed input (pulse OR analog)
+// D1  = ACC1
+// D2  = ACC2
+// D3  = ACC3
+// D4  = ACC4
+// D5  = ACC5
+// D6  = ACC6
+// D7  = Motor Forward PWM
+// D8  = Motor Reverse PWM
+// D9  = Motor DIR for 3-pin mode
+// D10 = Buzzer audio output
+// D11 = Amp audio output
+// D12-D14 are board power rails (not controlled here)
+// --------------------------------------------------
+const int PIN_SPEED      = D0;
+const int PIN_ACC[6]     = { D1, D2, D3, D4, D5, D6 };
+const int PIN_MOTOR_FWD  = D7;
+const int PIN_MOTOR_REV  = D8;
+const int PIN_MOTOR_DIR  = D9;
+const int PIN_AUDIO_BZ   = D10;
+const int PIN_AUDIO_AMP  = D11;
 
-// I2S pins
-const int PIN_I2S_DATA  = D6;  // GPIO10
-const int PIN_I2S_BCLK  = D4;  // GPIO8
-const int PIN_I2S_LRCLK = D5;  // GPIO9
-
-// -----------------------------
-// BLE UUIDs
-// -----------------------------
+// BLE UUIDs (kept from existing app for easy reuse)
 #define SERVICE_UUID                "19b10000-e8f2-537e-4f6c-d104768a1214"
 #define SENSOR_CHARACTERISTIC_UUID  "19b10001-e8f2-537e-4f6c-d104768a1214"
 #define LED_CHARACTERISTIC_UUID     "19b10002-e8f2-537e-4f6c-d104768a1214"
 
-// -----------------------------
-// Globals
-// -----------------------------
 BLEServer* pServer = nullptr;
 BLECharacteristic* pSensorCharacteristic = nullptr;
-BLECharacteristic* pLedCharacteristic = nullptr;
+BLECharacteristic* pCmdCharacteristic = nullptr;
 
 bool deviceConnected = false;
-uint32_t notifyValue = 0;
+uint32_t notifyCount = 0;
 
 Preferences prefs;
+String locoName = "fcon1.1";
 
-// loco state
-String locoName = "Controller2.1";
+// ------------------------
+// Runtime state
+// ------------------------
+enum SpeedMode {
+  SPEED_PULSE = 0,
+  SPEED_ANALOG = 1
+};
 
-int throttlePercent = 0;   // 0–100
-int direction = 1;         // 1 = forward, 0 = reverse
-bool accessory1 = false;
-bool accessory2 = false;
+enum MotorMode {
+  MOTOR_2PIN = 0,
+  MOTOR_3PIN = 1
+};
 
-// speed sensor
-volatile uint32_t speedPulses = 0;
-unsigned long lastSpeedSample = 0;
-float currentSpeed = 0.0;  // placeholder (e.g. scale MPH)
+volatile uint32_t speedPulseCount = 0;
+unsigned long lastSpeedSampleMs = 0;
+float speedValue = 0.0f;
+SpeedMode speedMode = SPEED_PULSE;
+MotorMode motorMode = MOTOR_2PIN;
 
-// boost
-bool boosting = false;
-unsigned long boostStart = 0;
-int boostDuration = 0;
+int throttlePercent = 0;  // 0-100
+int direction = 1;        // 1=forward, 0=reverse
 
-// -----------------------------
-// Speed sensor ISR
-// -----------------------------
+bool accessories[6] = { false, false, false, false, false, false };
+
+const int CH_AUDIO_BZ = 4;
+const int CH_AUDIO_AMP = 5;
+bool bzOn = false;
+bool ampOn = false;
+int bzFreq = 0;
+int ampFreq = 0;
+unsigned long bzUntil = 0;
+unsigned long ampUntil = 0;
+
 void IRAM_ATTR speedISR() {
-  speedPulses++;
+  speedPulseCount++;
 }
 
-// -----------------------------
-// Motor control
-// -----------------------------
+void notifyChip(const String& text) {
+  if (!deviceConnected || !pSensorCharacteristic) return;
+  pSensorCharacteristic->setValue(text.c_str());
+  pSensorCharacteristic->notify();
+}
+
+void loadConfig() {
+  prefs.begin("fcon", true);
+  String storedName = prefs.getString("name", "");
+  int storedSpeedMode = prefs.getInt("smode", (int)SPEED_PULSE);
+  int storedMotorMode = prefs.getInt("mmode", (int)MOTOR_2PIN);
+  prefs.end();
+
+  if (storedName.length() > 0) locoName = storedName;
+  speedMode = (storedSpeedMode == (int)SPEED_ANALOG) ? SPEED_ANALOG : SPEED_PULSE;
+  motorMode = (storedMotorMode == (int)MOTOR_3PIN) ? MOTOR_3PIN : MOTOR_2PIN;
+}
+
+void saveName(const String& name) {
+  prefs.begin("fcon", false);
+  prefs.putString("name", name);
+  prefs.end();
+}
+
+void saveModes() {
+  prefs.begin("fcon", false);
+  prefs.putInt("smode", (int)speedMode);
+  prefs.putInt("mmode", (int)motorMode);
+  prefs.end();
+}
+
+void setAccessory(int index1Based, bool on) {
+  if (index1Based < 1 || index1Based > 6) return;
+  int idx = index1Based - 1;
+  accessories[idx] = on;
+  digitalWrite(PIN_ACC[idx], on ? HIGH : LOW);
+}
+
+void setSpeedMode(SpeedMode newMode) {
+  if (speedMode == newMode) return;
+
+  if (newMode == SPEED_PULSE) {
+    pinMode(PIN_SPEED, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(PIN_SPEED), speedISR, RISING);
+  } else {
+    detachInterrupt(digitalPinToInterrupt(PIN_SPEED));
+    pinMode(PIN_SPEED, INPUT);
+  }
+
+  speedMode = newMode;
+  saveModes();
+}
+
+void fullStopMotor() {
+  ledcWrite(PIN_MOTOR_FWD, 0);
+  ledcWrite(PIN_MOTOR_REV, 0);
+}
+
 void applyMotorOutput() {
   int pwm = map(throttlePercent, 0, 100, 0, 255);
 
-  if (boosting) {
-    // during boost, pwm is handled elsewhere
+  if (throttlePercent <= 0) {
+    ledcWrite(PIN_MOTOR_FWD, 0);
+    ledcWrite(PIN_MOTOR_REV, 0);
     return;
   }
 
-  if (throttlePercent == 0) {
-    analogWrite(PIN_MOTOR_A, 0);
-    analogWrite(PIN_MOTOR_B, 0);
-    return;
-  }
-
-  if (direction == 1) {
-    analogWrite(PIN_MOTOR_A, pwm);
-    analogWrite(PIN_MOTOR_B, 0);
+  if (motorMode == MOTOR_2PIN) {
+    if (direction == 1) {
+      ledcWrite(PIN_MOTOR_FWD, pwm);
+      ledcWrite(PIN_MOTOR_REV, 0);
+    } else {
+      ledcWrite(PIN_MOTOR_FWD, 0);
+      ledcWrite(PIN_MOTOR_REV, pwm);
+    }
   } else {
-    analogWrite(PIN_MOTOR_A, 0);
-    analogWrite(PIN_MOTOR_B, pwm);
+    digitalWrite(PIN_MOTOR_DIR, direction == 1 ? HIGH : LOW);
+    ledcWrite(PIN_MOTOR_FWD, pwm);
+    ledcWrite(PIN_MOTOR_REV, 0);
   }
+}
+
+void setMotorMode(MotorMode newMode) {
+  motorMode = newMode;
+  saveModes();
+  applyMotorOutput();
 }
 
 void setThrottle(int percent) {
@@ -103,215 +186,280 @@ void setDirection(int dir) {
   applyMotorOutput();
 }
 
-void fullStop() {
-  throttlePercent = 0;
-  analogWrite(PIN_MOTOR_A, 0);
-  analogWrite(PIN_MOTOR_B, 0);
+void startToneBuzzer(int freq, int durationMs) {
+  freq = constrain(freq, 50, 8000);
+  ledcWriteTone(CH_AUDIO_BZ, freq);
+  bzOn = true;
+  bzFreq = freq;
+  bzUntil = durationMs > 0 ? millis() + (unsigned long)durationMs : 0;
 }
 
-// -----------------------------
-// Accessories
-// -----------------------------
-void setAccessory1(bool state) {
-  accessory1 = state;
-  digitalWrite(PIN_ACC1, state ? HIGH : LOW);
+void stopToneBuzzer() {
+  ledcWriteTone(CH_AUDIO_BZ, 0);
+  bzOn = false;
+  bzFreq = 0;
+  bzUntil = 0;
 }
 
-void setAccessory2(bool state) {
-  accessory2 = state;
-  digitalWrite(PIN_ACC2, state ? HIGH : LOW);
+void startToneAmp(int freq, int durationMs) {
+  freq = constrain(freq, 50, 12000);
+  ledcWriteTone(CH_AUDIO_AMP, freq);
+  ampOn = true;
+  ampFreq = freq;
+  ampUntil = durationMs > 0 ? millis() + (unsigned long)durationMs : 0;
 }
 
-// -----------------------------
-// Boost
-// -----------------------------
-void triggerBoost(int power, int durationMs) {
-  power = constrain(power, 0, 100);
-  int pwm = map(power, 0, 100, 0, 255);
+void stopToneAmp() {
+  ledcWriteTone(CH_AUDIO_AMP, 0);
+  ampOn = false;
+  ampFreq = 0;
+  ampUntil = 0;
+}
 
-  boosting = true;
-  boostStart = millis();
-  boostDuration = durationMs;
+void stopAllAudio() {
+  stopToneBuzzer();
+  stopToneAmp();
+}
 
-  if (direction == 1) {
-    analogWrite(PIN_MOTOR_A, pwm);
-    analogWrite(PIN_MOTOR_B, 0);
+void sampleSpeed() {
+  if (millis() - lastSpeedSampleMs < 500) return;
+
+  if (speedMode == SPEED_PULSE) {
+    noInterrupts();
+    uint32_t pulses = speedPulseCount;
+    speedPulseCount = 0;
+    interrupts();
+    speedValue = (float)pulses;
   } else {
-    analogWrite(PIN_MOTOR_A, 0);
-    analogWrite(PIN_MOTOR_B, pwm);
+    int raw = analogRead(PIN_SPEED);
+    speedValue = (float)raw;
   }
+
+  lastSpeedSampleMs = millis();
 }
 
-// -----------------------------
-// NVS: loco name
-// -----------------------------
-void loadLocoName() {
-  prefs.begin("controller", true);
-  String stored = prefs.getString("name", "");
-  prefs.end();
-
-  if (stored.length() > 0) {
-    locoName = stored;
-  }
+void emitStatus() {
+  String status = String("ST FW:") + FW_NAME +
+                  " SM:" + String((speedMode == SPEED_PULSE) ? "PULSE" : "ANALOG") +
+                  " MM:" + String((motorMode == MOTOR_2PIN) ? "2PIN" : "3PIN") +
+                  " T:" + String(throttlePercent) +
+                  " D:" + String(direction) +
+                  " BZ:" + String(bzOn ? "1" : "0") +
+                  " BF:" + String(bzFreq) +
+                  " AMP:" + String(ampOn ? "1" : "0") +
+                  " AF:" + String(ampFreq) +
+                  " S:" + String(speedValue, 1);
+  notifyChip(status);
 }
 
-void saveLocoName(const String& name) {
-  prefs.begin("controller", false);
-  prefs.putString("name", name);
-  prefs.end();
-}
-
-// -----------------------------
-// I2S audio init (skeleton)
-// -----------------------------
-void initI2S() {
-  i2s_config_t i2s_config = {
-    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-    .sample_rate = 22050,
-    .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
-    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
-    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-    .intr_alloc_flags = 0,
-    .dma_buf_count = 4,
-    .dma_buf_len = 256,
-    .use_apll = false,
-    .tx_desc_auto_clear = true,
-    .fixed_mclk = 0
-  };
-
-  i2s_pin_config_t pin_config = {
-    .bck_io_num = PIN_I2S_BCLK,
-    .ws_io_num = PIN_I2S_LRCLK,
-    .data_out_num = PIN_I2S_DATA,
-    .data_in_num = I2S_PIN_NO_CHANGE
-  };
-
-  i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
-  i2s_set_pin(I2S_NUM_0, &pin_config);
-  // TODO: add real audio playback later
-}
-
-// -----------------------------
-// BLE callbacks
-// -----------------------------
 class MyServerCallbacks : public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) override {
+  void onConnect(BLEServer* server) override {
     deviceConnected = true;
   }
-  void onDisconnect(BLEServer* pServer) override {
+
+  void onDisconnect(BLEServer* server) override {
     deviceConnected = false;
-    pServer->startAdvertising();
+    server->startAdvertising();
   }
 };
 
-class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic* pLedCharacteristic) override {
-    String raw = pLedCharacteristic->getValue().c_str();
-    if (raw.length() == 0) return;
-
-    String cmd = raw;
+class MyCommandCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic* characteristic) override {
+    String cmd = characteristic->getValue().c_str();
     cmd.trim();
+    if (cmd.length() == 0) return;
 
-    Serial.print("BLE Command: ");
+    Serial.print("CMD: ");
     Serial.println(cmd);
 
-    // Throttle: Txx
+    // Txx throttle
     if (cmd.startsWith("T")) {
       int t = cmd.substring(1).toInt();
       setThrottle(t);
-      Serial.printf("Throttle set to %d%%\n", t);
+      notifyChip("OK T");
       return;
     }
 
-    // Direction: D0 / D1
+    // D0/D1 direction
     if (cmd.startsWith("D")) {
       int d = cmd.substring(1).toInt();
       setDirection(d);
-      Serial.printf("Direction: %s\n", d ? "FORWARD" : "REVERSE");
+      notifyChip("OK D");
       return;
     }
 
-    // Boost: BOOST p d
-    if (cmd.startsWith("BOOST")) {
+    if (cmd == "STOP") {
+      setThrottle(0);
+      notifyChip("OK STOP");
+      return;
+    }
+
+    // A1 0/1 .. A6 0/1
+    if (cmd.startsWith("A") && cmd.length() >= 4) {
+      int accNum = cmd.substring(1, 2).toInt();
+      int val = cmd.substring(3).toInt();
+      if (accNum >= 1 && accNum <= 6) {
+        setAccessory(accNum, val != 0);
+        notifyChip("OK A" + String(accNum));
+        return;
+      }
+    }
+
+    // ACC n v  (explicit)
+    if (cmd.startsWith("ACC ")) {
       int s1 = cmd.indexOf(' ');
       int s2 = cmd.indexOf(' ', s1 + 1);
-      int power = cmd.substring(s1 + 1, s2).toInt();
-      int duration = cmd.substring(s2 + 1).toInt();
-      Serial.printf("BOOST %d%% for %d ms\n", power, duration);
-      triggerBoost(power, duration);
+      if (s2 > 0) {
+        int n = cmd.substring(s1 + 1, s2).toInt();
+        int v = cmd.substring(s2 + 1).toInt();
+        if (n >= 1 && n <= 6) {
+          setAccessory(n, v != 0);
+          notifyChip("OK ACC");
+          return;
+        }
+      }
+      notifyChip("ERR ACC");
       return;
     }
 
-    // Name: NAME xxxx
-    if (cmd.startsWith("NAME")) {
-      String name = cmd.substring(5);
-      name.trim();
-      if (name.length() > 0) {
-        locoName = name;
-        saveLocoName(locoName);
-        Serial.printf("Loco name set to: %s\n", locoName.c_str());
+    // Speed mode: SMODE PULSE|ANALOG
+    if (cmd.startsWith("SMODE ")) {
+      String mode = cmd.substring(6);
+      mode.trim();
+      mode.toUpperCase();
+      if (mode == "PULSE") {
+        setSpeedMode(SPEED_PULSE);
+        notifyChip("OK SMODE");
+      } else if (mode == "ANALOG") {
+        setSpeedMode(SPEED_ANALOG);
+        notifyChip("OK SMODE");
+      } else {
+        notifyChip("ERR SMODE");
       }
       return;
     }
 
-    // Accessory 1: A1 0/1
-    if (cmd.startsWith("A1")) {
-      int val = cmd.substring(3).toInt();
-      setAccessory1(val != 0);
-      Serial.printf("Accessory 1: %s\n", val ? "ON" : "OFF");
+    // Motor mode: MMODE 2|3
+    if (cmd.startsWith("MMODE ")) {
+      int m = cmd.substring(6).toInt();
+      if (m == 2) {
+        setMotorMode(MOTOR_2PIN);
+        notifyChip("OK MMODE");
+      } else if (m == 3) {
+        setMotorMode(MOTOR_3PIN);
+        notifyChip("OK MMODE");
+      } else {
+        notifyChip("ERR MMODE");
+      }
       return;
     }
 
-    // Accessory 2: A2 0/1
-    if (cmd.startsWith("A2")) {
-      int val = cmd.substring(3).toInt();
-      setAccessory2(val != 0);
-      Serial.printf("Accessory 2: %s\n", val ? "ON" : "OFF");
+    // BZ f durMs
+    if (cmd.startsWith("BZ ")) {
+      int s1 = cmd.indexOf(' ');
+      int s2 = cmd.indexOf(' ', s1 + 1);
+      if (s2 < 0) {
+        notifyChip("ERR BZ");
+        return;
+      }
+      int f = cmd.substring(s1 + 1, s2).toInt();
+      int dur = cmd.substring(s2 + 1).toInt();
+      startToneBuzzer(f, dur);
+      notifyChip("OK BZ");
       return;
     }
 
-    // Audio hooks (skeleton)
-    if (cmd == "HORN") {
-      Serial.println("HORN trigger (audio TODO)");
-      // TODO: play horn sample
+    if (cmd == "BZOFF") {
+      stopToneBuzzer();
+      notifyChip("OK BZOFF");
       return;
     }
 
-    if (cmd == "BELL") {
-      Serial.println("BELL trigger (audio TODO)");
-      // TODO: play bell sample
+    // AMP f durMs
+    if (cmd.startsWith("AMP ")) {
+      int s1 = cmd.indexOf(' ');
+      int s2 = cmd.indexOf(' ', s1 + 1);
+      if (s2 < 0) {
+        notifyChip("ERR AMP");
+        return;
+      }
+      int f = cmd.substring(s1 + 1, s2).toInt();
+      int dur = cmd.substring(s2 + 1).toInt();
+      startToneAmp(f, dur);
+      notifyChip("OK AMP");
       return;
     }
 
-    Serial.println("Unknown command.");
+    if (cmd == "AMPOFF") {
+      stopToneAmp();
+      notifyChip("OK AMPOFF");
+      return;
+    }
+
+    if (cmd == "AUDIOOFF") {
+      stopAllAudio();
+      notifyChip("OK AUDIOOFF");
+      return;
+    }
+
+    if (cmd == "STAT") {
+      emitStatus();
+      return;
+    }
+
+    if (cmd.startsWith("NAME ")) {
+      String nm = cmd.substring(5);
+      nm.trim();
+      if (nm.length() > 0) {
+        locoName = nm;
+        saveName(locoName);
+        notifyChip("OK NAME");
+      } else {
+        notifyChip("ERR NAME");
+      }
+      return;
+    }
+
+    notifyChip("ERR CMD");
   }
 };
 
-// -----------------------------
-// Setup
-// -----------------------------
-void setup() {
-  Serial.begin(115200);
-
-  // Load loco name from NVS
-  loadLocoName();
-  Serial.print("Loco name: ");
-  Serial.println(locoName);
-
-  // Pins
-  pinMode(PIN_MOTOR_A, OUTPUT);
-  pinMode(PIN_MOTOR_B, OUTPUT);
-  pinMode(PIN_ACC1, OUTPUT);
-  pinMode(PIN_ACC2, OUTPUT);
+void setupPins() {
   pinMode(PIN_SPEED, INPUT_PULLUP);
 
+  for (int i = 0; i < 6; i++) {
+    pinMode(PIN_ACC[i], OUTPUT);
+    digitalWrite(PIN_ACC[i], LOW);
+  }
+
+  pinMode(PIN_MOTOR_FWD, OUTPUT);
+  pinMode(PIN_MOTOR_REV, OUTPUT);
+  pinMode(PIN_MOTOR_DIR, OUTPUT);
+  digitalWrite(PIN_MOTOR_DIR, HIGH);
+
+  pinMode(PIN_AUDIO_BZ, OUTPUT);
+  pinMode(PIN_AUDIO_AMP, OUTPUT);
+
+  ledcAttachPin(PIN_MOTOR_FWD, PIN_MOTOR_FWD);
+  ledcSetup(PIN_MOTOR_FWD, 1000, 8);
+  ledcAttachPin(PIN_MOTOR_REV, PIN_MOTOR_REV);
+  ledcSetup(PIN_MOTOR_REV, 1000, 8);
+
+  ledcSetup(CH_AUDIO_BZ, 400, 8);
+  ledcAttachPin(PIN_AUDIO_BZ, CH_AUDIO_BZ);
+
+  ledcSetup(CH_AUDIO_AMP, 400, 8);
+  ledcAttachPin(PIN_AUDIO_AMP, CH_AUDIO_AMP);
+
+  stopAllAudio();
+  fullStopMotor();
+
   attachInterrupt(digitalPinToInterrupt(PIN_SPEED), speedISR, RISING);
+}
 
-  // I2S audio (skeleton)
-  initI2S();
-
-  // BLE
+void setupBLE() {
   BLEDevice::init(locoName.c_str());
+
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
@@ -319,61 +467,65 @@ void setup() {
 
   pSensorCharacteristic = pService->createCharacteristic(
     SENSOR_CHARACTERISTIC_UUID,
-    BLECharacteristic::PROPERTY_READ |
-    BLECharacteristic::PROPERTY_NOTIFY
+    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
   );
 
-  pLedCharacteristic = pService->createCharacteristic(
+  pCmdCharacteristic = pService->createCharacteristic(
     LED_CHARACTERISTIC_UUID,
     BLECharacteristic::PROPERTY_WRITE
   );
 
-  pLedCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
+  pCmdCharacteristic->setCallbacks(new MyCommandCallbacks());
 
   pSensorCharacteristic->addDescriptor(new BLE2902());
-  pLedCharacteristic->addDescriptor(new BLE2902());
+  pCmdCharacteristic->addDescriptor(new BLE2902());
 
   pService->start();
 
   BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   BLEDevice::startAdvertising();
-
-  Serial.println("Controller2.1 ready — advertising BLE.");
 }
 
-// -----------------------------
-// Loop
-// -----------------------------
+void setup() {
+  Serial.begin(115200);
+  loadConfig();
+
+  setupPins();
+  setSpeedMode(speedMode);
+  setMotorMode(motorMode);
+
+  setupBLE();
+
+  Serial.println();
+  Serial.printf("%s ready. BLE name: %s\n", FW_NAME, locoName.c_str());
+  Serial.println("Pin map active: D0 speed, D1-D6 ACC, D7/D8 PWM, D9 DIR, D10 buzzer, D11 amp");
+}
+
 void loop() {
-  // Handle boost timeout
-  if (boosting && (millis() - boostStart >= (unsigned long)boostDuration)) {
-    boosting = false;
-    Serial.println("Boost ended, restoring throttle.");
-    applyMotorOutput();
+  unsigned long now = millis();
+
+  if (bzOn && bzUntil > 0 && now >= bzUntil) {
+    stopToneBuzzer();
+    notifyChip("OK BZDONE");
   }
 
-  // Speed sampling (skeleton)
-  if (millis() - lastSpeedSample >= 500) {
-    noInterrupts();
-    uint32_t pulses = speedPulses;
-    speedPulses = 0;
-    interrupts();
-
-    // TODO: convert pulses to speed (RPM / scale MPH)
-    currentSpeed = pulses; // placeholder
-
-    lastSpeedSample = millis();
+  if (ampOn && ampUntil > 0 && now >= ampUntil) {
+    stopToneAmp();
+    notifyChip("OK AMPDONE");
   }
 
-  // Notify HTML (simple counter + placeholder speed)
+  sampleSpeed();
+
   if (deviceConnected) {
-    String payload = String("N:") + notifyValue + ",S:" + String(currentSpeed, 1);
+    String payload = String("N:") + notifyCount +
+                    ",S:" + String(speedValue, 1) +
+                    ",SM:" + (speedMode == SPEED_PULSE ? "P" : "A") +
+                    ",MM:" + (motorMode == MOTOR_2PIN ? "2" : "3");
     pSensorCharacteristic->setValue(payload.c_str());
     pSensorCharacteristic->notify();
-    notifyValue++;
-    delay(200);
-  } else {
-    delay(200);
+    notifyCount++;
   }
+
+  delay(200);
 }
