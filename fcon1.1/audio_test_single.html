@@ -190,12 +190,14 @@
 
     <div class="card">
       <h1>Buzzer / Amp Audio</h1>
-      <div class="muted" style="margin-bottom: 8px;">Recommended resonance is 300-500Hz for your buzzer.</div>
+      <div class="muted" style="margin-bottom: 8px;">Shared output pin is D10. Switch profile between buzzer and amp.</div>
       <div class="row" style="margin-bottom: 8px;">
         <input id="freqInput" type="number" min="300" max="500" step="1" value="400" placeholder="Frequency (Hz)" />
         <input id="durInput" type="number" min="0" max="5000" step="10" value="250" placeholder="Duration (ms)" />
       </div>
       <div class="grid">
+        <button id="audioOutBzBtn">Use D10 as Buzzer (AOUT BZ)</button>
+        <button id="audioOutAmpBtn">Use D10 as Amp (AOUT AMP)</button>
         <button id="playOnceBtn" class="primary">Play Once (BZ f ms)</button>
         <button id="holdBtn" class="good">Hold Tone (BZ f 0)</button>
         <button id="offBtn" class="danger">Buzzer Off (BZOFF)</button>
@@ -209,7 +211,7 @@
 
     <div class="card">
       <h1>Audio Test Suite</h1>
-      <div class="muted" style="margin-bottom: 8px;">One-tap checks for buzzer (D10) and amp output (D11).</div>
+      <div class="muted" style="margin-bottom: 8px;">One-tap checks using shared D10 output with buzzer/amp profiles.</div>
       <div class="grid">
         <button id="audioSmokeBtn" class="primary">Run Smoke Test</button>
         <button id="buzzerSweepBtn">Buzzer Sweep 300-500Hz</button>
@@ -271,6 +273,8 @@
       const playOnceBtn = $("playOnceBtn");
       const holdBtn = $("holdBtn");
       const offBtn = $("offBtn");
+      const audioOutBzBtn = $("audioOutBzBtn");
+      const audioOutAmpBtn = $("audioOutAmpBtn");
       const statBtn = $("statBtn");
       const patternInput = $("patternInput");
       const runPatternBtn = $("runPatternBtn");
@@ -516,6 +520,14 @@
 
       playOnceBtn.addEventListener("click", () => {
         sendCommand(`BZ ${readFreq()} ${readDur()}`);
+      });
+
+      audioOutBzBtn.addEventListener("click", () => {
+        sendCommand("AOUT BZ");
+      });
+
+      audioOutAmpBtn.addEventListener("click", () => {
+        sendCommand("AOUT AMP");
       });
 
       holdBtn.addEventListener("click", () => {

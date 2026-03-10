@@ -24,8 +24,7 @@ static const char* FW_NAME = "fcon1.1";
 // D7  = Motor Forward PWM
 // D8  = Motor Reverse PWM
 // D9  = Motor DIR for 3-pin mode
-// D10 = Buzzer audio output
-// D11 = Amp audio output
+// D10 = Shared audio output (buzzer or amp profile)
 // D12-D14 are board power rails (not controlled here)
 // --------------------------------------------------
 const int PIN_SPEED      = D0;
@@ -33,12 +32,7 @@ const int PIN_ACC[6]     = { D1, D2, D3, D4, D5, D6 };
 const int PIN_MOTOR_FWD  = D7;
 const int PIN_MOTOR_REV  = D8;
 const int PIN_MOTOR_DIR  = D9;
-const int PIN_AUDIO_BZ   = D10;
-#ifdef D11
-const int PIN_AUDIO_AMP  = D11;
-#else
-const int PIN_AUDIO_AMP  = D10;
-#endif
+const int PIN_AUDIO_OUT  = D10;
 
 // BLE UUIDs (kept from existing app for easy reuse)
 #define SERVICE_UUID                "19b10000-e8f2-537e-4f6c-d104768a1214"
@@ -68,6 +62,11 @@ enum MotorMode {
   MOTOR_3PIN = 1
 };
 
+enum AudioProfile {
+  AUDIO_PROFILE_BZ = 0,
+  AUDIO_PROFILE_AMP = 1
+};
+
 volatile uint32_t speedPulseCount = 0;
 unsigned long lastSpeedSampleMs = 0;
 float speedValue = 0.0f;
@@ -85,6 +84,7 @@ int bzFreq = 0;
 int ampFreq = 0;
 unsigned long bzUntil = 0;
 unsigned long ampUntil = 0;
+AudioProfile audioProfile = AUDIO_PROFILE_BZ;
 
 void IRAM_ATTR speedISR() {
   speedPulseCount++;
@@ -190,14 +190,17 @@ void setDirection(int dir) {
 
 void startToneBuzzer(int freq, int durationMs) {
   freq = constrain(freq, 50, 8000);
-  ledcWriteTone(PIN_AUDIO_BZ, freq);
+  ledcWriteTone(PIN_AUDIO_OUT, freq);
   bzOn = true;
+  ampOn = false;
   bzFreq = freq;
+  ampFreq = 0;
   bzUntil = durationMs > 0 ? millis() + (unsigned long)durationMs : 0;
+  ampUntil = 0;
 }
 
 void stopToneBuzzer() {
-  ledcWriteTone(PIN_AUDIO_BZ, 0);
+  ledcWriteTone(PIN_AUDIO_OUT, 0);
   bzOn = false;
   bzFreq = 0;
   bzUntil = 0;
@@ -205,20 +208,24 @@ void stopToneBuzzer() {
 
 void startToneAmp(int freq, int durationMs) {
   freq = constrain(freq, 50, 12000);
-  ledcWriteTone(PIN_AUDIO_AMP, freq);
+  ledcWriteTone(PIN_AUDIO_OUT, freq);
   ampOn = true;
+  bzOn = false;
   ampFreq = freq;
+  bzFreq = 0;
   ampUntil = durationMs > 0 ? millis() + (unsigned long)durationMs : 0;
+  bzUntil = 0;
 }
 
 void stopToneAmp() {
-  ledcWriteTone(PIN_AUDIO_AMP, 0);
+  ledcWriteTone(PIN_AUDIO_OUT, 0);
   ampOn = false;
   ampFreq = 0;
   ampUntil = 0;
 }
 
 void stopAllAudio() {
+  ledcWriteTone(PIN_AUDIO_OUT, 0);
   stopToneBuzzer();
   stopToneAmp();
 }
@@ -244,6 +251,7 @@ void emitStatus() {
   String status = String("ST FW:") + FW_NAME +
                   " SM:" + String((speedMode == SPEED_PULSE) ? "PULSE" : "ANALOG") +
                   " MM:" + String((motorMode == MOTOR_2PIN) ? "2PIN" : "3PIN") +
+                  " AO:" + String((audioProfile == AUDIO_PROFILE_BZ) ? "BZ" : "AMP") +
                   " T:" + String(throttlePercent) +
                   " D:" + String(direction) +
                   " BZ:" + String(bzOn ? "1" : "0") +
@@ -366,6 +374,7 @@ class MyCommandCallbacks : public BLECharacteristicCallbacks {
       }
       int f = cmd.substring(s1 + 1, s2).toInt();
       int dur = cmd.substring(s2 + 1).toInt();
+      audioProfile = AUDIO_PROFILE_BZ;
       startToneBuzzer(f, dur);
       notifyChip("OK BZ");
       return;
@@ -387,8 +396,45 @@ class MyCommandCallbacks : public BLECharacteristicCallbacks {
       }
       int f = cmd.substring(s1 + 1, s2).toInt();
       int dur = cmd.substring(s2 + 1).toInt();
+      audioProfile = AUDIO_PROFILE_AMP;
       startToneAmp(f, dur);
       notifyChip("OK AMP");
+      return;
+    }
+
+    // Output profile on shared D10 pin: AOUT BZ|AMP
+    if (cmd.startsWith("AOUT ")) {
+      String out = cmd.substring(5);
+      out.trim();
+      out.toUpperCase();
+      if (out == "BZ") {
+        audioProfile = AUDIO_PROFILE_BZ;
+        notifyChip("OK AOUT");
+      } else if (out == "AMP") {
+        audioProfile = AUDIO_PROFILE_AMP;
+        notifyChip("OK AOUT");
+      } else {
+        notifyChip("ERR AOUT");
+      }
+      return;
+    }
+
+    // Generic audio command uses selected profile: AUDIO f durMs
+    if (cmd.startsWith("AUDIO ")) {
+      int s1 = cmd.indexOf(' ');
+      int s2 = cmd.indexOf(' ', s1 + 1);
+      if (s2 < 0) {
+        notifyChip("ERR AUDIO");
+        return;
+      }
+      int f = cmd.substring(s1 + 1, s2).toInt();
+      int dur = cmd.substring(s2 + 1).toInt();
+      if (audioProfile == AUDIO_PROFILE_BZ) {
+        startToneBuzzer(f, dur);
+      } else {
+        startToneAmp(f, dur);
+      }
+      notifyChip("OK AUDIO");
       return;
     }
 
@@ -439,13 +485,11 @@ void setupPins() {
   pinMode(PIN_MOTOR_DIR, OUTPUT);
   digitalWrite(PIN_MOTOR_DIR, HIGH);
 
-  pinMode(PIN_AUDIO_BZ, OUTPUT);
-  pinMode(PIN_AUDIO_AMP, OUTPUT);
+  pinMode(PIN_AUDIO_OUT, OUTPUT);
 
   ledcAttach(PIN_MOTOR_FWD, 1000, 8);
   ledcAttach(PIN_MOTOR_REV, 1000, 8);
-  ledcAttach(PIN_AUDIO_BZ, 400, 8);
-  ledcAttach(PIN_AUDIO_AMP, 400, 8);
+  ledcAttach(PIN_AUDIO_OUT, 400, 8);
 
   stopAllAudio();
   fullStopMotor();
@@ -495,7 +539,7 @@ void setup() {
 
   Serial.println();
   Serial.printf("%s ready. BLE name: %s\n", FW_NAME, locoName.c_str());
-  Serial.println("Pin map active: D0 speed, D1-D6 ACC, D7/D8 PWM, D9 DIR, D10 buzzer, D11 amp");
+  Serial.println("Pin map active: D0 speed, D1-D6 ACC, D7/D8 PWM, D9 DIR, D10 shared audio (BZ/AMP)");
 }
 
 void loop() {
