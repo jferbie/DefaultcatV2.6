@@ -450,6 +450,13 @@
         }, 90);
       }
 
+      async function sendAccessoryPwmCompat(idx0, value) {
+        const safe = setAccessoryPwmUi(idx0, value);
+        const ch = idx0 + 1;
+        await sendCommand(`APWM ${ch} ${safe}`);
+        await sendCommand(`A${ch} ${safe}`);
+      }
+
       async function runPattern() {
         if (!writeChar) {
           log("Not connected. Connect first.", "WARN");
@@ -556,16 +563,14 @@
         slider.addEventListener("input", () => {
           queueAccessoryPwm(idx0, slider.value);
         });
-        slider.addEventListener("change", () => {
-          const safe = setAccessoryPwmUi(idx0, slider.value);
-          sendCommand(`APWM ${idx0 + 1} ${safe}`);
+        slider.addEventListener("change", async () => {
+          await sendAccessoryPwmCompat(idx0, slider.value);
         });
       });
 
       accAllOffBtn.addEventListener("click", async () => {
         for (let i = 0; i < 6; i++) {
-          setAccessoryPwmUi(i, 0);
-          await sendCommand(`APWM ${i + 1} 0`);
+          await sendAccessoryPwmCompat(i, 0);
         }
       });
 
