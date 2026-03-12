@@ -77,6 +77,7 @@ int throttlePercent = 0;  // 0-100
 int direction = 1;        // 1=forward, 0=reverse
 
 bool accessories[6] = { false, false, false, false, false, false };
+int accessoryPwm[6] = { 0, 0, 0, 0, 0, 0 };
 
 bool bzOn = false;
 bool ampOn = false;
@@ -125,7 +126,17 @@ void setAccessory(int index1Based, bool on) {
   if (index1Based < 1 || index1Based > 6) return;
   int idx = index1Based - 1;
   accessories[idx] = on;
-  digitalWrite(PIN_ACC[idx], on ? HIGH : LOW);
+  accessoryPwm[idx] = on ? 255 : 0;
+  ledcWrite(PIN_ACC[idx], accessoryPwm[idx]);
+}
+
+void setAccessoryPwm(int index1Based, int pwm) {
+  if (index1Based < 1 || index1Based > 6) return;
+  int idx = index1Based - 1;
+  int safe = constrain(pwm, 0, 255);
+  accessoryPwm[idx] = safe;
+  accessories[idx] = safe > 0;
+  ledcWrite(PIN_ACC[idx], safe);
 }
 
 void setSpeedMode(SpeedMode newMode) {
@@ -309,7 +320,11 @@ class MyCommandCallbacks : public BLECharacteristicCallbacks {
       int accNum = cmd.substring(1, 2).toInt();
       int val = cmd.substring(3).toInt();
       if (accNum >= 1 && accNum <= 6) {
-        setAccessory(accNum, val != 0);
+        if (val == 0 || val == 1) {
+          setAccessory(accNum, val != 0);
+        } else {
+          setAccessoryPwm(accNum, val);
+        }
         notifyChip("OK A" + String(accNum));
         return;
       }
@@ -323,12 +338,33 @@ class MyCommandCallbacks : public BLECharacteristicCallbacks {
         int n = cmd.substring(s1 + 1, s2).toInt();
         int v = cmd.substring(s2 + 1).toInt();
         if (n >= 1 && n <= 6) {
-          setAccessory(n, v != 0);
+          if (v == 0 || v == 1) {
+            setAccessory(n, v != 0);
+          } else {
+            setAccessoryPwm(n, v);
+          }
           notifyChip("OK ACC");
           return;
         }
       }
       notifyChip("ERR ACC");
+      return;
+    }
+
+    // APWM n 0-255
+    if (cmd.startsWith("APWM ")) {
+      int s1 = cmd.indexOf(' ');
+      int s2 = cmd.indexOf(' ', s1 + 1);
+      if (s2 > 0) {
+        int n = cmd.substring(s1 + 1, s2).toInt();
+        int v = cmd.substring(s2 + 1).toInt();
+        if (n >= 1 && n <= 6) {
+          setAccessoryPwm(n, v);
+          notifyChip("OK APWM");
+          return;
+        }
+      }
+      notifyChip("ERR APWM");
       return;
     }
 
@@ -477,7 +513,10 @@ void setupPins() {
 
   for (int i = 0; i < 6; i++) {
     pinMode(PIN_ACC[i], OUTPUT);
-    digitalWrite(PIN_ACC[i], LOW);
+    ledcAttach(PIN_ACC[i], 1000, 8);
+    ledcWrite(PIN_ACC[i], 0);
+    accessories[i] = false;
+    accessoryPwm[i] = 0;
   }
 
   pinMode(PIN_MOTOR_FWD, OUTPUT);

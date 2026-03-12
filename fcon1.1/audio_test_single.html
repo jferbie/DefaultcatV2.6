@@ -189,6 +189,20 @@
     </div>
 
     <div class="card">
+      <h1>Accessory PWM Test</h1>
+      <div class="muted" style="margin-bottom: 8px;">Simple sliders for ACC1-ACC6 PWM (0-255). Sends <b>APWM n value</b>.</div>
+      <div class="grid">
+        <div class="row"><label style="min-width:66px;">ACC1</label><input id="accPwm1" type="range" min="0" max="255" value="0" /><span id="accPwmVal1" class="badge">0</span></div>
+        <div class="row"><label style="min-width:66px;">ACC2</label><input id="accPwm2" type="range" min="0" max="255" value="0" /><span id="accPwmVal2" class="badge">0</span></div>
+        <div class="row"><label style="min-width:66px;">ACC3</label><input id="accPwm3" type="range" min="0" max="255" value="0" /><span id="accPwmVal3" class="badge">0</span></div>
+        <div class="row"><label style="min-width:66px;">ACC4</label><input id="accPwm4" type="range" min="0" max="255" value="0" /><span id="accPwmVal4" class="badge">0</span></div>
+        <div class="row"><label style="min-width:66px;">ACC5</label><input id="accPwm5" type="range" min="0" max="255" value="0" /><span id="accPwmVal5" class="badge">0</span></div>
+        <div class="row"><label style="min-width:66px;">ACC6</label><input id="accPwm6" type="range" min="0" max="255" value="0" /><span id="accPwmVal6" class="badge">0</span></div>
+      </div>
+      <div class="row" style="margin-top:8px;"><button id="accAllOffBtn" class="danger">All ACC PWM Off</button></div>
+    </div>
+
+    <div class="card">
       <h1>Buzzer / Amp Audio</h1>
       <div class="muted" style="margin-bottom: 8px;">Shared output pin is D10. Switch profile between buzzer and amp.</div>
       <div class="row" style="margin-bottom: 8px;">
@@ -268,6 +282,9 @@
       const sendBtn = $("sendBtn");
       const clearLogBtn = $("clearLogBtn");
       const customCmd = $("customCmd");
+      const accPwmSliders = [1,2,3,4,5,6].map((n) => $(`accPwm${n}`));
+      const accPwmValues = [1,2,3,4,5,6].map((n) => $(`accPwmVal${n}`));
+      const accAllOffBtn = $("accAllOffBtn");
       const freqInput = $("freqInput");
       const durInput = $("durInput");
       const playOnceBtn = $("playOnceBtn");
@@ -295,6 +312,7 @@
       const logEl = $("log");
       let patternAbort = false;
       let audioTestAbort = false;
+      const accDebounce = [null, null, null, null, null, null];
 
       function log(msg, type = "") {
         const ts = new Date().toLocaleTimeString();
@@ -417,6 +435,21 @@
           });
       }
 
+      function setAccessoryPwmUi(idx0, value) {
+        const safe = Math.max(0, Math.min(255, Math.round(Number(value) || 0)));
+        if (accPwmSliders[idx0]) accPwmSliders[idx0].value = String(safe);
+        if (accPwmValues[idx0]) accPwmValues[idx0].textContent = String(safe);
+        return safe;
+      }
+
+      function queueAccessoryPwm(idx0, value) {
+        const safe = setAccessoryPwmUi(idx0, value);
+        if (accDebounce[idx0]) clearTimeout(accDebounce[idx0]);
+        accDebounce[idx0] = setTimeout(() => {
+          sendCommand(`APWM ${idx0 + 1} ${safe}`);
+        }, 90);
+      }
+
       async function runPattern() {
         if (!writeChar) {
           log("Not connected. Connect first.", "WARN");
@@ -518,6 +551,24 @@
         logEl.textContent = "";
       });
 
+      accPwmSliders.forEach((slider, idx0) => {
+        if (!slider) return;
+        slider.addEventListener("input", () => {
+          queueAccessoryPwm(idx0, slider.value);
+        });
+        slider.addEventListener("change", () => {
+          const safe = setAccessoryPwmUi(idx0, slider.value);
+          sendCommand(`APWM ${idx0 + 1} ${safe}`);
+        });
+      });
+
+      accAllOffBtn.addEventListener("click", async () => {
+        for (let i = 0; i < 6; i++) {
+          setAccessoryPwmUi(i, 0);
+          await sendCommand(`APWM ${i + 1} 0`);
+        }
+      });
+
       playOnceBtn.addEventListener("click", () => {
         sendCommand(`BZ ${readFreq()} ${readDur()}`);
       });
@@ -590,6 +641,8 @@
           sendCommand(btn.getAttribute("data-cmd"));
         });
       });
+
+      for (let i = 0; i < 6; i++) setAccessoryPwmUi(i, 0);
 
       log("Ready. Connect to fcon1.1 and test controls/audio commands.");
     })();
